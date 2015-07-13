@@ -1,0 +1,242 @@
+\documentclass{beamer}
+\usepackage{color}
+\usepackage{bm}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{listings}
+\beamertemplatenavigationsymbolsempty
+\definecolor{mygreen}{rgb}{0,0.6,0}
+\definecolor{mymauve}{rgb}{0.58,0,0.82}
+\lstset{ %
+  backgroundcolor=\color{white},   % choose the background color; you must add \usepackage{color} or \usepackage{xcolor}
+  basicstyle=\footnotesize,        % the size of the fonts that are used for the code
+  commentstyle=\color{mygreen},    % comment style
+  deletekeywords={...},            % if you want to delete keywords from the given language
+  extendedchars=true,              % lets you use non-ASCII characters; for 8-bits encodings only, does not work with UTF-8
+  frame=single,                    % adds a frame around the code
+  keywordstyle=\color{blue},       % keyword style
+  language=Python,                 % the language of the code
+  rulecolor=\color{black},         % if not set, the frame-color may be changed on line-breaks within not-black text (e.g. comments (green here))
+  showspaces=false,                % show spaces everywhere adding particular underscores; it overrides 'showstringspaces'
+  showstringspaces=false,          % don't show spaces in strings
+  stringstyle=\color{mymauve},     % string literal style
+  title=\lstname                   % show the filename of files included with \lstinputlisting; also try caption instead of title
+}
+\hypersetup{
+    colorlinks=true,
+    urlcolor=blue
+}
+
+\graphicspath{ {./img/} {./charts/} }
+
+
+\title{Django's System Check Framework}
+\author{Adam Johnson - me@adamj.eu}
+\date{13 July 2015}
+
+\begin{document}
+
+
+\maketitle
+
+
+\begin{frame}[fragile]\frametitle{What is it?}
+
+    \begin{center}
+        \includegraphics[width=10cm]{checkit}
+    \end{center}
+
+    \begin{itemize}
+        \item It checks your code!
+    \end{itemize}
+
+\end{frame}
+
+
+\begin{frame}[fragile]\frametitle{What is it?}
+
+    \begin{itemize}
+        \item Added to Django in version 1.7
+        \item Checks things after 'ready' time, such as models, deprecated features, and contrib apps
+        \item Can be run alone as manage.py command
+        \item Looks like this:
+    \end{itemize}
+
+        \begin{lstlisting}
+$ ./manage.py check
+System check identified some issues:
+
+WARNINGS:
+
+?: (1_6.W001) Some project unittests may not execute as
+  expected.
+    HINT: Django 1.6 introduced a new default test
+    runner. It looks like this project was generated
+    using Django 1.5 or earlier. You should ensure your
+    tests are all running & behaving as expected. See https://docs.djangoproject.com/en/dev/releases/1.6/#discovery-of-tests-in-any-test-module
+    for more information.
+    \end{lstlisting}
+
+\end{frame}
+
+
+\begin{frame}[fragile]\frametitle{Why is it good?}
+
+    \begin{center}
+        \includegraphics[width=10cm]{celebrate}
+    \end{center}
+
+    \begin{itemize}
+        \item Code quality!
+    \end{itemize}
+
+\end{frame}
+
+
+\begin{frame}[fragile]\frametitle{Why is it good?}
+
+    \begin{itemize}
+        \item ``Beyond linting'' - code quality checks that can only be done at runtime, not by flake8
+        \item Extensible - third party apps can provide checks too
+        \item Runs on nearly every manage command - you can't forget to run it, unlike tests!
+    \end{itemize}
+
+\end{frame}
+
+
+\begin{frame}[fragile]\frametitle{Using it}
+
+    \begin{center}
+        \includegraphics[width=10cm]{demo}
+    \end{center}
+
+    \begin{itemize}
+        \item How do you use it?
+    \end{itemize}
+
+\end{frame}
+
+
+\begin{frame}[fragile]\frametitle{Using it}
+
+    \begin{itemize}
+        \item Normally it does its work without you realizing, until you see an error and correct it
+        \item However it's easy to write your own checks - the framework is very simple
+        \item At YPlan, we already had some sanity checks in place as unit tests - converting them to checks has improved the situation
+        \item I'll show you how now
+    \end{itemize}
+
+\end{frame}
+
+
+\begin{frame}[fragile]\frametitle{An ex-unit test}
+
+    \begin{itemize}
+        \item An example old sanity check:
+    \end{itemize}
+
+    \begin{lstlisting}
+class SupportedFeaturesTest(SimpleTestCase):
+    """Check features that might not be supported in
+       some OS versions"""
+    def test_strftime_dash_strips_leading_zeroes(self):
+        # Not every unix strftime has %P
+        dt = datetime(2000, 10, 11, 2, 12)
+        self.assertEqual(
+            dt.strftime('%-I:%M %P'),
+            '2:12 am'
+        )
+    \end{lstlisting}
+
+    \begin{itemize}
+        \item Bad! The test might not be run; or if it is and fails, its output is buried amongst all the other tests dependent on this failing
+    \end{itemize}
+\end{frame}
+
+
+
+\begin{frame}[fragile]\frametitle{An ex-unit test}
+
+    \begin{center}
+        \includegraphics[width=10cm]{better}
+    \end{center}
+
+    \begin{itemize}
+        \item Let's make it better!
+    \end{itemize}
+
+\end{frame}
+
+
+\begin{frame}[fragile]\frametitle{Writing a check}
+
+    \begin{itemize}
+        \item A basic check:
+    \end{itemize}
+
+    \begin{lstlisting}
+from django.core.checks import Error, Tags, register
+
+@register(Tags.compatibility)
+def check_system(app_configs, **kwargs):
+    # app_configs is a list of AppConfig objects
+    # kwargs is for future extension
+    errors = []
+    if bad_thing():
+        errors.append(
+            Error(
+                "My error message",
+                id='mycode.001'
+            )
+        )
+    return errors
+    \end{lstlisting}
+
+    \begin{itemize}
+        \item Put in \texttt{myapp/apps.py} next to your \texttt{MyAppConfig} class
+    \end{itemize}
+
+\end{frame}
+
+
+\begin{frame}[fragile]\frametitle{Converting our unit test}
+
+    \begin{itemize}
+        \item Magicked into a mini check function:
+    \end{itemize}
+
+    \begin{lstlisting}
+def check_system(app_configs, **kwargs):
+    errors = []
+    errors.extend(_check_strftime())
+    return errors
+
+def _check_strftime():
+    errors = []
+    dt = datetime(2000, 10, 11, 2, 12)
+    if dt.strftime('%-I:%M %P') != '2:12 am':
+        errors.append(Error(
+            "strftime does not appear to support using "
+            "%- to strip leading zeroes",
+            id='yplan.E007'
+        ))
+    return errors
+    \end{lstlisting}
+
+\end{frame}
+
+
+\begin{frame}[fragile]\frametitle{Thank you}
+
+    \begin{center}
+        \includegraphics[width=10cm]{clapping}
+    \end{center}
+
+    \begin{itemize}
+        \item \url{me@adamj.eu} ; blog at adamj.eu/tech/
+    \end{itemize}
+
+\end{frame}
+
+
+\end{document}
