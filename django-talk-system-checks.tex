@@ -57,7 +57,7 @@
 
     \begin{itemize}
         \item Added to Django in version 1.7
-        \item Checks things after 'ready' time, such as models, deprecated features, and contrib apps
+        \item Automatically checks things after 'ready' time, such as models, deprecated features, and contrib apps
         \item Can be run alone as manage.py command
         \item Looks like this:
     \end{itemize}
@@ -132,7 +132,7 @@ WARNINGS:
 \begin{frame}[fragile]\frametitle{An ex-unit test}
 
     \begin{itemize}
-        \item An example old sanity check:
+        \item An example old sanity check from the YPlan codebase:
     \end{itemize}
 
     \begin{lstlisting}
@@ -140,7 +140,8 @@ class SupportedFeaturesTest(SimpleTestCase):
     """Check features that might not be supported in
        some OS versions"""
     def test_strftime_dash_strips_leading_zeroes(self):
-        # Not every unix strftime has %P
+        # Not every strftime implementation has %- to
+        # strip leading zeroes, but we use it
         dt = datetime(2000, 10, 11, 2, 12)
         self.assertEqual(
             dt.strftime('%-I:%M %P'),
@@ -149,13 +150,13 @@ class SupportedFeaturesTest(SimpleTestCase):
     \end{lstlisting}
 
     \begin{itemize}
-        \item Bad! The test might not be run; or if it is and fails, its output is buried amongst all the other tests dependent on this failing
+        \item Bad! The test might not be run; or if it is run and fails, its output is buried amongst all the other test failures based upon this strftime feature
     \end{itemize}
 \end{frame}
 
 
 
-\begin{frame}[fragile]\frametitle{An ex-unit test}
+\begin{frame}[fragile]\frametitle{Better!}
 
     \begin{center}
         \includegraphics[width=10cm]{better}
@@ -171,7 +172,7 @@ class SupportedFeaturesTest(SimpleTestCase):
 \begin{frame}[fragile]\frametitle{Writing a check}
 
     \begin{itemize}
-        \item A basic check:
+        \item Checks return lists of \texttt{Error}s:
     \end{itemize}
 
     \begin{lstlisting}
@@ -224,6 +225,99 @@ def _check_strftime():
     \end{lstlisting}
 
 \end{frame}
+
+
+\begin{frame}[fragile]\frametitle{It's better}
+
+    \begin{itemize}
+        \item Now the check runs at \texttt{runserver} or most other \texttt{manage.py} commands
+        \item If it fails, it's unignorable
+        \item It takes less than a millisecond to run so doesn't really impact startup time
+    \end{itemize}
+
+\end{frame}
+
+
+\begin{frame}[fragile]\frametitle{requirements.txt}
+
+    \begin{center}
+        \includegraphics[width=8cm]{phone-call}
+    \end{center}
+
+    \begin{itemize}
+        \item Dev: "Hey Adam, code is failing with ImportError"
+        \item Me: "...you didn't pip install requirements.txt like I said on skype ten minutes ago, did you? Does anyone listen to me??"
+    \end{itemize}
+
+\end{frame}
+
+
+\begin{frame}[fragile]\frametitle{requirements.txt}
+
+    \begin{itemize}
+        \item A communication bottleneck, especially with nearly 100 dependencies!
+        \item Worse when developing several branches concurrently, only one of which is based on the new version of a package
+    \end{itemize}
+
+    \begin{center}
+        \includegraphics[width=8cm]{frozen}
+    \end{center}
+
+\end{frame}
+
+
+\begin{frame}[fragile]\frametitle{Solution: a system check!!}
+
+    \begin{itemize}
+        \item At launch, compare \texttt{pip freeze} to parsed lines of \texttt{requirements.txt}
+        \item Basically:
+    \end{itemize}
+
+    \begin{lstlisting}
+from pip.operations.freeze import freeze as pip_freeze
+
+def check_requirements(app_configs, **kwargs):
+
+    with open(REQUIREMENTS_TXT_PATH, 'r') as f:
+        requirements = pip_parse(f.read().split('\n'))
+
+    current = pip_parse(pip_freeze())
+
+    errors = []
+    for name, version in requirements.iteritems():
+        # Compare with current - if missing or wrong
+        # version, append an Error() to errors...
+
+    return errors
+    \end{lstlisting}
+
+\end{frame}
+
+
+\begin{frame}[fragile]\frametitle{Solution: a check}
+
+    \begin{itemize}
+        \item Example output:
+    \end{itemize}
+
+    \begin{lstlisting}
+$ ./manage.py runserver
+CommandError: System check identified some issues:
+
+ERRORS:
+?: (yplan.E002) Package patchy has version 1.1.0 in
+   requirements.txt but you have version 1.0.0 installed
+   - you should `pip install -r ../requirements.txt`
+
+System check identified 1 issue (0 silenced).
+    \end{lstlisting}
+
+    \begin{itemize}
+        \item Will open-source this. Haven't solved git-based package versions yet
+    \end{itemize}
+
+\end{frame}
+
 
 
 \begin{frame}[fragile]\frametitle{Thank you}
