@@ -123,7 +123,6 @@ WARNINGS:
         \item Normally it does its work without you realizing, until you see an error and correct it
         \item However it's easy to write your own checks - the framework is very simple
         \item At YPlan, we already had some sanity checks in place as unit tests - converting them to checks has improved the situation
-        \item I'll show you how now
     \end{itemize}
 
 \end{frame}
@@ -132,7 +131,7 @@ WARNINGS:
 \begin{frame}[fragile]\frametitle{An ex-unit test}
 
     \begin{itemize}
-        \item An example old sanity check from the YPlan codebase:
+        \item An example old sanity-checking unit test from the YPlan codebase:
     \end{itemize}
 
     \begin{lstlisting}
@@ -150,13 +149,13 @@ class SupportedFeaturesTest(SimpleTestCase):
     \end{lstlisting}
 
     \begin{itemize}
-        \item Bad! The test might not be run; or if it is run and fails, its output is buried amongst all the other test failures based upon this strftime feature
+        \item Bad! The test might not be run; or if it is run and fails, its output is buried amongst all the other test failures of features that depend upon strftime's \texttt{\%-I}
     \end{itemize}
 \end{frame}
 
 
 
-\begin{frame}[fragile]\frametitle{Better!}
+\begin{frame}[fragile]\frametitle{Make it better!}
 
     \begin{center}
         \includegraphics[width=10cm]{better}
@@ -172,7 +171,7 @@ class SupportedFeaturesTest(SimpleTestCase):
 \begin{frame}[fragile]\frametitle{Writing a check}
 
     \begin{itemize}
-        \item Checks return lists of \texttt{Error}s:
+        \item Easy - just \texttt{register} a function that returns a list of \texttt{Error} objects representing bad things:
     \end{itemize}
 
     \begin{lstlisting}
@@ -186,7 +185,7 @@ def check_system(app_configs, **kwargs):
     if bad_thing():
         errors.append(
             Error(
-                "My error message",
+                "Stop! Bad thing has happened!",
                 id='mycode.001'
             )
         )
@@ -203,13 +202,15 @@ def check_system(app_configs, **kwargs):
 \begin{frame}[fragile]\frametitle{Converting our unit test}
 
     \begin{itemize}
-        \item Magicked into a mini check function:
+        \item Magicked into a sub-function:
     \end{itemize}
 
     \begin{lstlisting}
+@register(Tags.compatibility)
 def check_system(app_configs, **kwargs):
     errors = []
     errors.extend(_check_strftime())
+    # ...
     return errors
 
 def _check_strftime():
@@ -227,12 +228,12 @@ def _check_strftime():
 \end{frame}
 
 
-\begin{frame}[fragile]\frametitle{It's better}
+\begin{frame}[fragile]\frametitle{It's better!}
 
     \begin{itemize}
-        \item Now the check runs at \texttt{runserver} or most other \texttt{manage.py} commands
+        \item Now the \texttt{strftime} check runs at \texttt{runserver} and most other \texttt{manage.py} commands
         \item If it fails, it's unignorable
-        \item It takes less than a millisecond to run so doesn't really impact startup time
+        \item It takes less than a millisecond so doesn't really impact startup time
     \end{itemize}
 
 \end{frame}
@@ -313,11 +314,59 @@ System check identified 1 issue (0 silenced).
     \end{lstlisting}
 
     \begin{itemize}
-        \item Will open-source this. Haven't solved git-based package versions yet
+        \item Will open-source this. Haven't solved git-based packages yet
     \end{itemize}
 
 \end{frame}
 
+
+\begin{frame}[fragile]\frametitle{Running checks as part of tests}
+
+    \begin{itemize}
+        \item By default Django has doesn't run checks during \texttt{manage.py test}
+        \item This is because tests mutate settings, e.g. prefixing database names with \texttt{test\_} - checks can't be run before this is done
+        \item But \textit{lots} of our API development is done on branches using \textit{only} the test suite. We need the checks to run in this case!
+    \end{itemize}
+
+
+    \begin{center}
+        \includegraphics[width=7cm]{pointing}
+    \end{center}
+
+\end{frame}
+
+
+\begin{frame}[fragile]\frametitle{Running checks as part of tests}
+
+    \begin{itemize}
+        \item Turns out to not be so hard with a custom test runner class (\texttt{settings.TEST\_RUNNER}):
+    \end{itemize}
+
+    \begin{lstlisting}
+from django.core.management import call_command
+from django_nose import NoseTestSuiteRunner
+
+
+class YPlanTestSuiteRunner(NoseTestSuiteRunner):
+
+    def run_suite(self, *args, **kwargs):
+        call_command('check')
+        return super(YPlanTestSuiteRunner, self) \
+               .run_suite(*args, **kwargs)
+    \end{lstlisting}
+
+\end{frame}
+
+
+\begin{frame}[fragile]\frametitle{Idea - ``Django strict mode''}
+
+    \begin{itemize}
+        \item PEP8 enforces a stricter subset of python for more consistent code; a checks app could enforce a stricter subset of Django features for more consistent applications
+        \item Turn some of the `best practice recommendations' in the docs into actual rules, for example `url names should start with \texttt{appname-}'
+        \item Any ideas?
+    \end{itemize}
+
+\end{frame}
 
 
 \begin{frame}[fragile]\frametitle{Thank you}
@@ -327,7 +376,7 @@ System check identified 1 issue (0 silenced).
     \end{center}
 
     \begin{itemize}
-        \item \url{me@adamj.eu} ; blog at adamj.eu/tech/
+        \item \url{me@adamj.eu} ; blog at \url{http://adamj.eu/tech/}
     \end{itemize}
 
 \end{frame}
